@@ -4,3 +4,5 @@
 
 #include "Engine.h"
 
+#define OBJECTTYPE_SphereTracer ECC_GameTraceChannel1
+#define TRACETYPE_LedgeTrace ECC_GameTraceChannel2

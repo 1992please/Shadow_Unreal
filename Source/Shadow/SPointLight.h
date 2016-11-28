@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
-
+#include "ShadowObject.h"
 #include "Engine/PointLight.h"
 #include "SPointLight.generated.h"
 
@@ -9,7 +9,7 @@
  * 
  */
 UCLASS()
-class SHADOW_API ASPointLight : public APointLight
+class SHADOW_API ASPointLight : public APointLight, public IShadowObject
 {
 	GENERATED_BODY()
 private:
@@ -28,9 +28,22 @@ private:
 	virtual void Tick(float DeltaSeconds) override;
 
 	//End of override
+	void ActivateShadow(bool bMode) override;
+	// override shadowObject
 public:
-	UPROPERTY(EditAnywhere, Category = Curve)
-	UCurveFloat* Curve;
+	UPROPERTY(EditAnywhere, Category = DamageCurve)
+	UCurveFloat* DamageCurve;
+
+	UPROPERTY(EditAnywhere, Category = DamageCurve)
+	float DamageTimerInterval;
+
+	UPROPERTY(EditAnywhere, Category = DamageCurve)
+	float DamagePerSec;
+
+private:
+	float DamageTimer;
+	bool bCanDamage;
+	void UpdateDealDamageToPlayer(float DeltaSeconds);
 
 private:
 //overriden to avoid Erros

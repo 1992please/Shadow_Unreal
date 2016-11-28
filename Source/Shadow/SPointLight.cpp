@@ -11,6 +11,11 @@ ASPointLight::ASPointLight()
 	Sphere = CreateDefaultSubobject<USphereComponent>("Sphere");
 	Sphere->SetCollisionProfileName("OverlapAll");
 	Sphere->SetupAttachment(PointLightComponent);
+
+	DamageTimerInterval = 0.5f;
+	DamageTimer = 0;
+	DamagePerSec = 50;
+	bCanDamage = false;
 }
 
 void ASPointLight::NotifyActorBeginOverlap(AActor * OtherActor)
@@ -20,6 +25,7 @@ void ASPointLight::NotifyActorBeginOverlap(AActor * OtherActor)
 	if (SC)
 	{
 		DamagedPlayer = SC;
+		DamageTimer = 0;
 	}
 }
 
@@ -44,16 +50,34 @@ void ASPointLight::PostInitializeComponents()
 void ASPointLight::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (DamagedPlayer && Curve)
-	{
-		const float DistanceToPlayer = FVector::Dist(DamagedPlayer->GetActorLocation(), GetActorLocation());
-		const float Factor = 1 - DistanceToPlayer/ PointLightComponent->AttenuationRadius;
-		GEngine->AddOnScreenDebugMessage(0, 10, FColor::White, FString::SanitizeFloat(Curve->GetFloatValue(Factor)));
-	}
+	UpdateDealDamageToPlayer(DeltaSeconds);
+}
+
+void ASPointLight::ActivateShadow(bool bMode)
+{
+	PointLightComponent->SetCastShadows(!bMode);
+	bCanDamage = bMode;
+	//GEngine->AddOnScreenDebugMessage(0, 10, FColor::White, "Hello");
 }
 
 /// Overriden to avoid Errors
 #if WITH_EDITOR
+void ASPointLight::UpdateDealDamageToPlayer(float DeltaSeconds)
+{
+	if (bCanDamage && DamagedPlayer && DamageCurve)
+	{
+		DamageTimer += DeltaSeconds;
+		if (DamageTimer > DamageTimerInterval)
+		{
+			DamageTimer = 0;
+
+			const float DistanceToPlayer = FVector::Dist(DamagedPlayer->GetActorLocation(), GetActorLocation());
+			const float Factor = 1 - DistanceToPlayer / PointLightComponent->AttenuationRadius;
+			//GEngine->AddOnScreenDebugMessage(0, 10, FColor::White, FString::SanitizeFloat(DamageCurve->GetFloatValue(Factor)));
+			DamagedPlayer->TakeDamage(DamageCurve->GetFloatValue(Factor) * DamagePerSec * DamageTimerInterval, FDamageEvent(), NULL, this);
+		}
+	}
+}
 void ASPointLight::EditorApplyScale(const FVector& DeltaScale, const FVector* PivotLocation, bool bAltDown, bool bShiftDown, bool bCtrlDown)
 {
 	const FVector ModifiedScale = DeltaScale * (AActor::bUsePercentageBasedScaling ? 10000.0f : 100.0f);

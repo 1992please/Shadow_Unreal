@@ -5,13 +5,27 @@
 #include "GameFramework/Character.h"
 #include "ShadowCharacter.generated.h"
 
+UENUM(BlueprintType)
+enum class EBarkourState
+{
+	GroundedNormal,
+	GroundedActive,
+	WallRunning,
+	Hanging,
+	ClimbingEdge,
+	Rolling,
+	InAir
+};
+
 UCLASS()
 class SHADOW_API AShadowCharacter : public ACharacter, public IShadowObject
 {
 	GENERATED_BODY()
 
-		AShadowCharacter();
+	AShadowCharacter();
 	// override Actor
+	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void BeginPlay() override;
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
 	//End of override Actor
@@ -26,6 +40,10 @@ class SHADOW_API AShadowCharacter : public ACharacter, public IShadowObject
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UMyCameraComponent* FollowCamera;
+
+	///** Tracing Objects */
+	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	//USphereComponent* SphereTracer;
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
@@ -35,7 +53,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 	float BaseLookUpRate;
 
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser);
+
 protected:
+	UPROPERTY()
+	TArray<UMaterialInstanceDynamic*> MeshMats;
+
 	UPROPERTY(VisibleAnywhere, Category = Tags)
 	FName Volume2DTag;
 
@@ -76,11 +99,69 @@ protected:
 	*/
 	void LookUpAtRate(float Rate);
 
-	/** Handler for when a touch input begins. */
-	void TouchStarted(ETouchIndex::Type FingerIndex, FVector Location);
+	virtual void Jump() override;
 
-	/** Handler for when a touch input stops. */
-	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
+	virtual void StopJumping() override;
+
+	void FocusedModeOn();
+
+	void FocusedModeOff();
+//protected:
+//	UFUNCTION()
+//	void OnSphereTracerBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult);
+//	UFUNCTION()
+//	void OnSphereTracerEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+public:
+	UPROPERTY(EditDefaultsOnly, Category = Barkour)
+	float HangingOffset;
+
+	UPROPERTY(EditDefaultsOnly, Category = Barkour)
+	UAnimMontage* ClimbWallAnim;
+
+	// to be called from the anim blueprint
+	UFUNCTION(BlueprintCallable, Category = Barkour)
+	void SetBarkourState(EBarkourState NewState);
+
+	UFUNCTION(BlueprintPure, Category = Barkour)
+	EBarkourState GetBarkourState() const;
+
+private:
+	float WallRunningOldAltitude;
+	float WallRunningNewAltitude;
+	float WallRunningFactor;
+
+
+	bool bFocusedMode;
+
+	EBarkourState BarkourState;
+
+	FVector WallTraceImpactPoint;
+
+	FVector WallNormal;
+
+	FVector LedgeImpactPoint;
+
+	bool CheckCanGrab();
+	
+	bool CheckCanWallRun();
+
+	void UpdateTracers(float DeltaTime = .1f);
+
+	bool TraceLowerForward(FHitResult& HitOut);
+
+	bool TraceMiddleForward(FHitResult& HitOut);
+
+	bool TraceUpperDownward(FHitResult& HitOut);
+
+	bool TraceUpperForward(FHitResult& HitOut);
+
+	bool TraceWall(FVector Start, FVector End, FHitResult& HitOut);
+
+	FVector2D MovementInput;
+
+	FVector GetAxisDirection();
+
+	bool bCanWallRun;
 
 protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Fear")
@@ -88,11 +169,35 @@ protected:
 
 	float FearTimer;
 
+	float BaseTimeForRegenration;
+
+	float HealthRegenrationPerSecond;
+
+	float HealthTimer;
+
+
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 	// End of APawn interface
 
 	virtual void Tick(float DeltaSeconds) override;
+private:
+	bool bDamaged;
+
+	void UpdateCameraPosition(float DeltaSeconds);
+
+	void UpdateFearTimer(float DeltaSeconds);
+
+	void UpdateHealth(float DeltaSeconds);
+
+protected:
+	UPROPERTY(EditDefaultsOnly, Category = Character)
+	float MaxHealth;
+
+	float Health;
+
+
+	void UpdateBurnParameter();
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
@@ -102,6 +207,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = Fear)
 	float GetFearPercentage() const;
 
+	UFUNCTION(BlueprintPure, Category = Fear)
+	float GetHealthPercentage() const;
 protected:
 	/** The main skeletal mesh associated with this Character (optional sub-object). */
 	UPROPERTY(Category = Shadow, EditAnywhere, BlueprintReadOnly)
